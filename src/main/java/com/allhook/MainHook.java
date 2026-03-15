@@ -1,5 +1,6 @@
 package com.allhook;
 
+import android.app.ActivityManager;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.ApplicationInfo;
@@ -24,14 +25,24 @@ public class MainHook implements IXposedHookLoadPackage {
             log("=== 模块加载：" + lpparam.packageName + " ===");
         }
 
+        // PackageManager 检测
         hookGetPackageInfo(lpparam);
         hookGetApplicationInfo(lpparam);
+        hookGetInstalledPackages(lpparam);
+        hookGetInstalledApplications(lpparam);
+        
+        // Intent 检测
         hookQueryIntentActivities(lpparam);
         hookResolveActivity(lpparam);
+        
+        // 文件检测
         hookFile(lpparam);
+        
+        // ActivityManager 检测
+        hookActivityManager(lpparam);
     }
 
-    // ========== 核心 Hook：getPackageInfo ==========
+    // ========== PackageManager: getPackageInfo ==========
     private void hookGetPackageInfo(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
@@ -39,12 +50,10 @@ public class MainHook implements IXposedHookLoadPackage {
                 String pkg = (String) param.args[0];
                 PackageInfo info = (PackageInfo) param.getResult();
                 
-                // 检测自身时，返回真实信息
                 if (lpparam.packageName.equals(pkg)) {
                     return;
                 }
                 
-                // 检测其他应用时，如果原方法返回 null，则伪造
                 if (info == null) {
                     PackageInfo fakeInfo = createFakePackageInfo(pkg);
                     param.setResult(fakeInfo);
@@ -77,7 +86,7 @@ public class MainHook implements IXposedHookLoadPackage {
         } catch (Throwable ignored) {}
     }
 
-    // ========== 核心 Hook：getApplicationInfo ==========
+    // ========== PackageManager: getApplicationInfo ==========
     private void hookGetApplicationInfo(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
@@ -85,12 +94,10 @@ public class MainHook implements IXposedHookLoadPackage {
                 String pkg = (String) param.args[0];
                 ApplicationInfo info = (ApplicationInfo) param.getResult();
                 
-                // 检测自身时，返回真实信息
                 if (lpparam.packageName.equals(pkg)) {
                     return;
                 }
                 
-                // 检测其他应用时，如果原方法返回 null，则伪造
                 if (info == null) {
                     ApplicationInfo fakeInfo = createFakeAppInfo(pkg);
                     param.setResult(fakeInfo);
@@ -111,7 +118,55 @@ public class MainHook implements IXposedHookLoadPackage {
         } catch (Throwable ignored) {}
     }
 
-    // ========== Hook：queryIntentActivities ==========
+    // ========== PackageManager: getInstalledPackages ==========
+    private void hookGetInstalledPackages(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
+        XC_MethodHook hook = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                @SuppressWarnings("unchecked")
+                List<PackageInfo> result = (List<PackageInfo>) param.getResult();
+                if (result == null) return;
+                
+                log("[" + lpparam.packageName + "] getInstalledPackages() → " + result.size() + " 个应用");
+            }
+        };
+
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.app.ApplicationPackageManager",
+                lpparam.classLoader,
+                "getInstalledPackages",
+                int.class,
+                hook
+            );
+        } catch (Throwable ignored) {}
+    }
+
+    // ========== PackageManager: getInstalledApplications ==========
+    private void hookGetInstalledApplications(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
+        XC_MethodHook hook = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                @SuppressWarnings("unchecked")
+                List<ApplicationInfo> result = (List<ApplicationInfo>) param.getResult();
+                if (result == null) return;
+                
+                log("[" + lpparam.packageName + "] getInstalledApplications() → " + result.size() + " 个应用");
+            }
+        };
+
+        try {
+            XposedHelpers.findAndHookMethod(
+                "android.app.ApplicationPackageManager",
+                lpparam.classLoader,
+                "getInstalledApplications",
+                int.class,
+                hook
+            );
+        } catch (Throwable ignored) {}
+    }
+
+    // ========== Intent: queryIntentActivities ==========
     private void hookQueryIntentActivities(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
@@ -144,7 +199,7 @@ public class MainHook implements IXposedHookLoadPackage {
         } catch (Throwable ignored) {}
     }
 
-    // ========== Hook：resolveActivity ==========
+    // ========== Intent: resolveActivity ==========
     private void hookResolveActivity(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
@@ -174,7 +229,7 @@ public class MainHook implements IXposedHookLoadPackage {
         } catch (Throwable ignored) {}
     }
 
-    // ========== Hook：File 检测 ==========
+    // ========== File 检测 ==========
     private void hookFile(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook existsHook = new XC_MethodHook() {
             @Override
@@ -238,6 +293,52 @@ public class MainHook implements IXposedHookLoadPackage {
 
         try {
             XposedHelpers.findAndHookMethod(File.class, "canRead", canReadHook);
+        } catch (Throwable ignored) {}
+    }
+
+    // ========== ActivityManager 检测 ==========
+    private void hookActivityManager(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
+        XC_MethodHook hook = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                @SuppressWarnings("unchecked")
+                List<ActivityManager.RunningAppProcessInfo> result = 
+                    (List<ActivityManager.RunningAppProcessInfo>) param.getResult();
+                
+                if (result == null) return;
+                
+                log("[" + lpparam.packageName + "] getRunningAppProcesses() → " + result.size() + " 个进程");
+            }
+        };
+
+        try {
+            XposedHelpers.findAndHookMethod(
+                ActivityManager.class,
+                "getRunningAppProcesses",
+                hook
+            );
+        } catch (Throwable ignored) {}
+
+        XC_MethodHook taskHook = new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                @SuppressWarnings("unchecked")
+                List<ActivityManager.RunningTaskInfo> result = 
+                    (List<ActivityManager.RunningTaskInfo>) param.getResult();
+                
+                if (result == null) return;
+                
+                log("[" + lpparam.packageName + "] getRunningTasks() → " + result.size() + " 个任务");
+            }
+        };
+
+        try {
+            XposedHelpers.findAndHookMethod(
+                ActivityManager.class,
+                "getRunningTasks",
+                int.class,
+                taskHook
+            );
         } catch (Throwable ignored) {}
     }
 
