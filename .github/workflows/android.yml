@@ -33,7 +33,7 @@ jobs:
 
       - name: 🔧 下载并安装 Gradle 9.4
         run: |
-          wget https://github.com/gradle/gradle/releases/download/v9.4.0/gradle-9.4-bin.zip -O /tmp/gradle.zip
+          wget https://services.gradle.org/distributions/gradle-9.4.0-all.zip -O /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /opt/
           ln -sf /opt/gradle-9.4/bin/gradle /usr/local/bin/gradle
           gradle --version
