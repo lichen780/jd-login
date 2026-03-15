@@ -25,10 +25,10 @@ android {
 
     signingConfigs {
         release {
-            storeFile file(System.getenv("KEYSTORE_FILE") ?: "keystore.jks")
-            storePassword System.getenv("KEYSTORE_PASSWORD") ?: ""
-            keyAlias System.getenv("KEY_ALIAS") ?: ""
-            keyPassword System.getenv("KEY_PASSWORD") ?: ""
+            storeFile file(project.hasProperty('android.injected.signing.store.file') ? project.property('android.injected.signing.store.file') : 'keystore.jks')
+            storePassword project.hasProperty('android.injected.signing.store.password') ? project.property('android.injected.signing.store.password') : ''
+            keyAlias project.hasProperty('android.injected.signing.key.alias') ? project.property('android.injected.signing.key.alias') : ''
+            keyPassword project.hasProperty('android.injected.signing.key.password') ? project.property('android.injected.signing.key.password') : ''
         }
     }
 
