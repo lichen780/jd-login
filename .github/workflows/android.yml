@@ -1,9 +1,12 @@
-name: 🤖 Build Android APK（自动构建，无需 gradlew，使用 GitHub Gradle）
+name: 🤖 Build Android APK
 
 on:
   push:
     branches:
-      - main  # 当你 push 到 main 分支时触发构建，可改成其他分支
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
@@ -11,27 +14,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 拉取代码
       - name: 📥 拉取源码
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # 2. 设置 Java 17（Android 项目通常需要 JDK 11~17）
       - name: ⚙️ 设置 JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
-      # 3. 使用 GitHub 官方 Gradle Action，自动下载并使用 Gradle（无需 gradlew）
-      - name: 🛠️ 构建项目 (assembleDebug)
-        uses: gradle/gradle-build-action@v2
+      - name: 🛠️ 构建项目
+        uses: gradle/gradle-build-action@v3
         with:
-          gradle-version: 8.4  # 你可以使用 7.6、8.4、8.5 等稳定版本
-          arguments: assembleDebug  # 构建 debug APK，如需 release，请改为 assembleRelease
+          gradle-version: 8.4
+          arguments: assembleDebug
 
-      # 4. 【可选】上传生成的 APK 文件，提供下载（使用 v4，已修复弃用问题！）
-      - name: 📤 上传 APK 到 GitHub Actions（构建产物）
+      - name: 📤 上传 APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk  # 你可以自定义这个名字，比如 my-app-build
-          path: app/build/outputs/apk/debug/app-debug.apk  # ⚠️ 请根据你的模块名修改路径！
+          name: app-debug
+          path: build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
