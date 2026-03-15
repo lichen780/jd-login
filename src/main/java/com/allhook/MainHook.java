@@ -11,7 +11,6 @@ public class MainHook implements IXposedHookLoadPackage {
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         hookPackageManager(lpparam);
-        hookApplicationPackageManager(lpparam);
     }
 
     private void hookPackageManager(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
@@ -21,15 +20,14 @@ public class MainHook implements IXposedHookLoadPackage {
                 String pkg = (String) param.args[0];
                 PackageInfo info = (PackageInfo) param.getResult();
                 
-                // 如果是检测当前应用自身，返回真实信息
-                if (lpparam.packageName.equals(pkg)) {
+                // 如果原方法已经返回了 PackageInfo（无论是不是当前应用），不修改
+                if (info != null) {
                     return;
                 }
                 
-                // 如果原方法返回 null（应用未安装），伪造一个已安装的信息
-                if (info == null) {
-                    param.setResult(createFakePackageInfo(pkg));
-                }
+                // 只有当原方法返回 null 时，才伪造一个已安装信息
+                PackageInfo fakeInfo = createFakePackageInfo(pkg);
+                param.setResult(fakeInfo);
             }
         };
 
@@ -55,51 +53,6 @@ public class MainHook implements IXposedHookLoadPackage {
                 int.class,
                 long.class,
                 hook
-            );
-        } catch (Throwable ignored) {}
-    }
-
-    private void hookApplicationPackageManager(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        XC_MethodHook hook = new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                String pkg = (String) param.args[0];
-                
-                // 如果是检测当前应用自身，返回真实信息
-                if (lpparam.packageName.equals(pkg)) {
-                    return;
-                }
-                
-                // 伪造已安装
-                param.setResult(createFakePackageInfo(pkg));
-            }
-        };
-
-        // Hook getApplicationInfo
-        try {
-            XposedHelpers.findAndHookMethod(
-                "android.app.ApplicationPackageManager",
-                lpparam.classLoader,
-                "getApplicationInfo",
-                String.class,
-                int.class,
-                hook
-            );
-        } catch (Throwable ignored) {}
-
-        // Hook getInstalledPackages
-        try {
-            XposedHelpers.findAndHookMethod(
-                "android.app.ApplicationPackageManager",
-                lpparam.classLoader,
-                "getInstalledPackages",
-                int.class,
-                new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                        // 返回空列表，避免暴露其他已安装应用
-                    }
-                }
             );
         } catch (Throwable ignored) {}
     }
