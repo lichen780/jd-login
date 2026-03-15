@@ -1,58 +1,36 @@
-name: Build APK and Auto Commit to Repo
+name: Build Android APK (使用 GitHub 托管的 Gradle，无需 gradlew)
 
 on:
   push:
     branches:
-      - main  # 仅在 push 到 main 分支时触发
+      - main  # 当你 push 到 main 分支时触发构建
 
 jobs:
-  build-and-commit:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       # 1. 拉取代码
-      - name: Checkout Repository
+      - name: Checkout 代码
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0  # 获取全部历史，以便 git push 成功
 
-      # 2. 设置 Java 环境
-      - name: Set up JDK 17
+      # 2. 设置 JDK 17（Android 项目通常需要 JDK 11~17）
+      - name: 设置 JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. 赋予 gradlew 执行权限
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      # 3. 使用 GitHub 官方推荐的 Gradle Action，自动下载 Gradle
+      - name: 构建 Android 项目 (使用 Gradle)
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 8.4  # 你可以使用 7.6 / 8.4 / 8.5 等稳定版本
+          arguments: assembleDebug  # 构建 debug APK，如需 release 改成 assembleRelease
 
-      # 4. 构建 APK（默认是 debug，如有 release，请改成 assembleRelease）
-      - name: Build Android APK (Debug)
-        run: ./gradlew assembleDebug
-
-      # 5. 创建一个用于存放 APK 的目录（如 releases/）
-      - name: Prepare APK Directory
-        run: mkdir -p releases
-
-      # 6. 拷贝生成的 APK 到 releases/ 目录
-      #    注意：请根据你的实际项目模块名和构建类型修改此路径！
-      #    一般默认模块名为 app，构建生成的 debug apk 路径为：
-      #    app/build/outputs/apk/debug/app-debug.apk
-      - name: Copy APK to releases/
-        run: |
-          # 如果你的模块名不是 app，请修改下面的路径！比如 jdlogin/
-          cp app/build/outputs/apk/debug/app-debug.apk releases/app-debug-${{ github.sha }}.apk
-
-      # 7. 配置 Git 用户信息（使用 GitHub Actions 默认用户）
-      - name: Configure Git
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-
-      # 8. 添加、提交并推送 APK 文件到仓库
-      - name: Commit and Push APK
-        run: |
-          git add releases/
-          git commit -m "🤖 Auto-commit APK: app-debug-${{ github.sha }}.apk [Build #${{ github.run_number }}]"
-          git push
+      # 4. （可选）如果你想上传生成的 APK 文件供下载，可以加上这一步
+      - name: 上传 APK 文件（如果存在）
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk  # ⚠️ 请根据你的实际模块名和路径修改！
