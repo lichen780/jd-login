@@ -2,111 +2,15 @@ package com.allhook;
 
 import android.app.Activity;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.widget.TextView;
-import android.widget.ScrollView;
-import android.widget.Button;
-import android.widget.LinearLayout;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 
 public class MainActivity extends Activity {
-    private TextView textView;
-    private Handler handler = new Handler(Looper.getMainLooper());
-    private Runnable refreshRunnable;
-    private boolean isRefreshing = true;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(10, 10, 10, 10);
-        
-        LinearLayout buttonLayout = new LinearLayout(this);
-        buttonLayout.setOrientation(LinearLayout.HORIZONTAL);
-        
-        Button refreshBtn = new Button(this);
-        refreshBtn.setText("刷新");
-        refreshBtn.setOnClickListener(v -> refreshLog());
-        
-        Button clearBtn = new Button(this);
-        clearBtn.setText("清除日志");
-        clearBtn.setOnClickListener(v -> clearLog());
-        
-        buttonLayout.addView(refreshBtn);
-        buttonLayout.addView(clearBtn);
-        
-        textView = new TextView(this);
-        textView.setTextSize(11);
-        textView.setPadding(15, 15, 15, 15);
-        
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.addView(textView);
-        
-        layout.addView(buttonLayout);
-        layout.addView(scrollView);
-        setContentView(layout);
-        
-        refreshRunnable = new Runnable() {
-            @Override
-            public void run() {
-                if (isRefreshing) {
-                    refreshLog();
-                    handler.postDelayed(this, 1000);
-                }
-            }
-        };
-    }
-    
-    @Override
-    protected void onResume() {
-        super.onResume();
-        isRefreshing = true;
-        handler.post(refreshRunnable);
-    }
-    
-    @Override
-    protected void onPause() {
-        super.onPause();
-        isRefreshing = false;
-        handler.removeCallbacks(refreshRunnable);
-    }
-    
-    private void refreshLog() {
-        String log = getHookLog();
-        textView.setText(log.isEmpty() ? "暂无日志\n\n请确保：\n1. Xposed 中已勾选本模块\n2. 勾选了目标应用\n3. 重启了目标应用" : log);
-    }
-    
-    private String getHookLog() {
-        StringBuilder log = new StringBuilder();
-        try {
-            Process process = Runtime.getRuntime().exec("logcat -d -s AllHook:*");
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                // 移除 logcat 前缀
-                int idx = line.indexOf("I AllHook :");
-                if (idx >= 0) {
-                    line = line.substring(idx + 11).trim();
-                }
-                log.append(line).append("\n");
-            }
-            reader.close();
-        } catch (Exception e) {
-            log.append("读取失败：").append(e.getMessage());
-        }
-        return log.toString();
-    }
-    
-    private void clearLog() {
-        try {
-            Runtime.getRuntime().exec("logcat -c");
-            textView.setText("日志已清除");
-        } catch (Exception e) {
-            textView.setText("清除失败：" + e.getMessage());
-        }
+        TextView textView = new TextView(this);
+        textView.setText("Xposed 模块已激活\n\n请在 Xposed 框架中勾选本模块和目标应用");
+        textView.setPadding(50, 50, 50, 50);
+        setContentView(textView);
     }
 }
