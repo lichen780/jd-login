@@ -26,9 +26,11 @@ jobs:
 
       - name: 🔑 使用固定签名密钥库
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks || echo "未设置 KEYSTORE_BASE64，使用临时密钥"
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+          fi
           if [ ! -f keystore.jks ]; then
-            keytool -genkey -v -keystore keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias keyalias -storepass android -keypass android -dname "CN=Android, OU=Android, O=Android, L=Android, ST=Android, C=US"
+            keytool -genkeypair -v -keystore keystore.jks -alias keyalias -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android, OU=Android, O=Android, L=Android, ST=Android, C=US"
           fi
 
       - name: 🔧 下载并安装 Gradle 9.4
