@@ -24,39 +24,24 @@ public class MainHook implements IXposedHookLoadPackage {
             log("=== 模块加载：" + lpparam.packageName + " ===");
         }
 
-        // PackageManager 检测
         hookGetPackageInfo(lpparam);
         hookGetApplicationInfo(lpparam);
-        hookGetInstalledPackages(lpparam);
-        hookGetInstalledApplications(lpparam);
-        
-        // Intent 检测
         hookQueryIntentActivities(lpparam);
         hookResolveActivity(lpparam);
-        
-        // 文件检测
         hookFile(lpparam);
-        
-        // 其他检测
-        hookPackageManagerFlags(lpparam);
-        hookPackageParser(lpparam);
     }
 
-    // ========== PackageManager 检测 ==========
+    // ========== 核心 Hook：getPackageInfo ==========
     private void hookGetPackageInfo(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 String pkg = (String) param.args[0];
-                PackageInfo info = (PackageInfo) param.getResult();
-
-                if (info != null) {
-                    return;
-                }
-
+                
+                // 直接返回伪造的 PackageInfo，不调用原方法
                 PackageInfo fakeInfo = createFakePackageInfo(pkg);
                 param.setResult(fakeInfo);
-                log("[" + lpparam.packageName + "] getPackageInfo(" + pkg + ") → 伪装成功");
+                log("[" + lpparam.packageName + "] getPackageInfo(" + pkg + ") → 返回伪造数据");
             }
         };
 
@@ -69,7 +54,10 @@ public class MainHook implements IXposedHookLoadPackage {
                 int.class,
                 hook
             );
-        } catch (Throwable ignored) {}
+            log("Hook 成功：getPackageInfo(String, int)");
+        } catch (Throwable e) {
+            log("Hook 失败：getPackageInfo(String, int) - " + e.getMessage());
+        }
 
         try {
             XposedHelpers.findAndHookMethod(
@@ -81,23 +69,22 @@ public class MainHook implements IXposedHookLoadPackage {
                 long.class,
                 hook
             );
-        } catch (Throwable ignored) {}
+            log("Hook 成功：getPackageInfo(String, int, long)");
+        } catch (Throwable e) {
+            log("Hook 失败：getPackageInfo(String, int, long) - " + e.getMessage());
+        }
     }
 
+    // ========== 核心 Hook：getApplicationInfo ==========
     private void hookGetApplicationInfo(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 String pkg = (String) param.args[0];
-                ApplicationInfo info = (ApplicationInfo) param.getResult();
-
-                if (info != null) {
-                    return;
-                }
-
+                
                 ApplicationInfo fakeInfo = createFakeAppInfo(pkg);
                 param.setResult(fakeInfo);
-                log("[" + lpparam.packageName + "] getApplicationInfo(" + pkg + ") → 伪装成功");
+                log("[" + lpparam.packageName + "] getApplicationInfo(" + pkg + ") → 返回伪造数据");
             }
         };
 
@@ -110,74 +97,25 @@ public class MainHook implements IXposedHookLoadPackage {
                 int.class,
                 hook
             );
-        } catch (Throwable ignored) {}
+            log("Hook 成功：getApplicationInfo(String, int)");
+        } catch (Throwable e) {
+            log("Hook 失败：getApplicationInfo(String, int) - " + e.getMessage());
+        }
     }
 
-    private void hookGetInstalledPackages(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        XC_MethodHook hook = new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                @SuppressWarnings("unchecked")
-                List<PackageInfo> result = (List<PackageInfo>) param.getResult();
-                if (result == null) return;
-                
-                log("[" + lpparam.packageName + "] getInstalledPackages() → 返回 " + result.size() + " 个应用");
-            }
-        };
-
-        try {
-            XposedHelpers.findAndHookMethod(
-                "android.app.ApplicationPackageManager",
-                lpparam.classLoader,
-                "getInstalledPackages",
-                int.class,
-                hook
-            );
-        } catch (Throwable ignored) {}
-    }
-
-    private void hookGetInstalledApplications(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        XC_MethodHook hook = new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                @SuppressWarnings("unchecked")
-                List<ApplicationInfo> result = (List<ApplicationInfo>) param.getResult();
-                if (result == null) return;
-                
-                log("[" + lpparam.packageName + "] getInstalledApplications() → 返回 " + result.size() + " 个应用");
-            }
-        };
-
-        try {
-            XposedHelpers.findAndHookMethod(
-                "android.app.ApplicationPackageManager",
-                lpparam.classLoader,
-                "getInstalledApplications",
-                int.class,
-                hook
-            );
-        } catch (Throwable ignored) {}
-    }
-
-    // ========== Intent 检测 ==========
+    // ========== Hook：queryIntentActivities ==========
     private void hookQueryIntentActivities(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                @SuppressWarnings("unchecked")
-                List<ResolveInfo> result = (List<ResolveInfo>) param.getResult();
-                
-                if (result == null || result.isEmpty()) {
-                    List<ResolveInfo> fakeList = new ArrayList<>();
-                    ResolveInfo resolveInfo = new ResolveInfo();
-                    resolveInfo.activityInfo = new android.content.pm.ActivityInfo();
-                    resolveInfo.activityInfo.packageName = "com.fake.package";
-                    resolveInfo.activityInfo.name = "FakeActivity";
-                    resolveInfo.activityInfo.enabled = true;
-                    fakeList.add(resolveInfo);
-                    param.setResult(fakeList);
-                    log("[" + lpparam.packageName + "] queryIntentActivities() → 伪装成功");
-                }
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                List<ResolveInfo> fakeList = new ArrayList<>();
+                ResolveInfo resolveInfo = new ResolveInfo();
+                resolveInfo.activityInfo = new android.content.pm.ActivityInfo();
+                resolveInfo.activityInfo.packageName = "com.fake.package";
+                resolveInfo.activityInfo.name = "FakeActivity";
+                resolveInfo.activityInfo.enabled = true;
+                fakeList.add(resolveInfo);
+                param.setResult(fakeList);
             }
         };
 
@@ -193,21 +131,17 @@ public class MainHook implements IXposedHookLoadPackage {
         } catch (Throwable ignored) {}
     }
 
+    // ========== Hook：resolveActivity ==========
     private void hookResolveActivity(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                ResolveInfo result = (ResolveInfo) param.getResult();
-                
-                if (result == null) {
-                    ResolveInfo fakeInfo = new ResolveInfo();
-                    fakeInfo.activityInfo = new android.content.pm.ActivityInfo();
-                    fakeInfo.activityInfo.packageName = "com.fake.package";
-                    fakeInfo.activityInfo.name = "FakeActivity";
-                    fakeInfo.activityInfo.enabled = true;
-                    param.setResult(fakeInfo);
-                    log("[" + lpparam.packageName + "] resolveActivity() → 伪装成功");
-                }
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                ResolveInfo fakeInfo = new ResolveInfo();
+                fakeInfo.activityInfo = new android.content.pm.ActivityInfo();
+                fakeInfo.activityInfo.packageName = "com.fake.package";
+                fakeInfo.activityInfo.name = "FakeActivity";
+                fakeInfo.activityInfo.enabled = true;
+                param.setResult(fakeInfo);
             }
         };
 
@@ -223,9 +157,8 @@ public class MainHook implements IXposedHookLoadPackage {
         } catch (Throwable ignored) {}
     }
 
-    // ========== 文件检测 ==========
+    // ========== Hook：File 检测 ==========
     private void hookFile(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        // Hook File.exists()
         XC_MethodHook existsHook = new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -233,11 +166,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 String path = file.getAbsolutePath();
 
                 if (path.startsWith("/data/app/")) {
-                    String pkg = extractPackageName(path);
-                    if (pkg != null) {
-                        log("[" + lpparam.packageName + "] File.exists(" + pkg + ") → 返回存在");
-                        param.setResult(true);
-                    }
+                    param.setResult(true);
                 }
             }
         };
@@ -246,7 +175,6 @@ public class MainHook implements IXposedHookLoadPackage {
             XposedHelpers.findAndHookMethod(File.class, "exists", existsHook);
         } catch (Throwable ignored) {}
 
-        // Hook File.isFile()
         XC_MethodHook isFileHook = new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -263,7 +191,6 @@ public class MainHook implements IXposedHookLoadPackage {
             XposedHelpers.findAndHookMethod(File.class, "isFile", isFileHook);
         } catch (Throwable ignored) {}
 
-        // Hook File.isDirectory()
         XC_MethodHook isDirHook = new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -271,11 +198,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 String path = file.getAbsolutePath();
 
                 if (path.startsWith("/data/data/")) {
-                    String pkg = extractPackageNameFromDataDir(path);
-                    if (pkg != null) {
-                        log("[" + lpparam.packageName + "] File.isDirectory(" + pkg + ") → 返回存在");
-                        param.setResult(true);
-                    }
+                    param.setResult(true);
                 }
             }
         };
@@ -284,7 +207,6 @@ public class MainHook implements IXposedHookLoadPackage {
             XposedHelpers.findAndHookMethod(File.class, "isDirectory", isDirHook);
         } catch (Throwable ignored) {}
 
-        // Hook File.canRead()
         XC_MethodHook canReadHook = new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -300,110 +222,9 @@ public class MainHook implements IXposedHookLoadPackage {
         try {
             XposedHelpers.findAndHookMethod(File.class, "canRead", canReadHook);
         } catch (Throwable ignored) {}
-
-        // Hook File.length()
-        XC_MethodHook lengthHook = new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                File file = (File) param.thisObject;
-                String path = file.getAbsolutePath();
-
-                if (path.startsWith("/data/app/")) {
-                    param.setResult(1000000L); // 返回 1MB
-                }
-            }
-        };
-
-        try {
-            XposedHelpers.findAndHookMethod(File.class, "length", lengthHook);
-        } catch (Throwable ignored) {}
-    }
-
-    // ========== 其他检测 ==========
-    private void hookPackageManagerFlags(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        XC_MethodHook enabledSettingHook = new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                int result = (param.getResult() != null) ? (int) param.getResult() : 0;
-                
-                if (result == 1 || result == 3) {
-                    param.setResult(2);
-                    log("[" + lpparam.packageName + "] getApplicationEnabledSetting() → 伪装为启用");
-                }
-            }
-        };
-
-        try {
-            XposedHelpers.findAndHookMethod(
-                "android.app.ApplicationPackageManager",
-                lpparam.classLoader,
-                "getApplicationEnabledSetting",
-                String.class,
-                enabledSettingHook
-            );
-        } catch (Throwable ignored) {}
-
-        try {
-            XposedHelpers.findAndHookMethod(
-                "android.app.ApplicationPackageManager",
-                lpparam.classLoader,
-                "getComponentEnabledSetting",
-                "android.content.ComponentName",
-                enabledSettingHook
-            );
-        } catch (Throwable ignored) {}
-    }
-
-    // Hook PackageParser - 防止反射检测
-    private void hookPackageParser(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        XC_MethodHook hook = new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                if (param.getResult() == null) {
-                    log("[" + lpparam.packageName + "] PackageParser → 拦截异常");
-                    param.setResult(new PackageInfo());
-                }
-            }
-        };
-
-        try {
-            XposedHelpers.findAndHookMethod(
-                "android.content.pm.PackageParser",
-                lpparam.classLoader,
-                "parsePackage",
-                File.class,
-                int.class,
-                hook
-            );
-        } catch (Throwable ignored) {}
     }
 
     // ========== 工具方法 ==========
-    private String extractPackageName(String path) {
-        if (path.contains("/data/app/")) {
-            String[] parts = path.replace("/data/app/", "").split("/");
-            if (parts.length > 0) {
-                String pkg = parts[0];
-                int dashIndex = pkg.indexOf('-');
-                if (dashIndex > 0) {
-                    pkg = pkg.substring(0, dashIndex);
-                }
-                return pkg;
-            }
-        }
-        return null;
-    }
-
-    private String extractPackageNameFromDataDir(String path) {
-        if (path.contains("/data/data/")) {
-            String[] parts = path.replace("/data/data/", "").split("/");
-            if (parts.length > 0) {
-                return parts[0];
-            }
-        }
-        return null;
-    }
-
     private PackageInfo createFakePackageInfo(String pkg) {
         PackageInfo info = new PackageInfo();
         info.packageName = pkg;
