@@ -1,4 +1,4 @@
-name: 🤖 Build Android APK
+name: 🤖 自动生成APK
 
 on:
   push:
