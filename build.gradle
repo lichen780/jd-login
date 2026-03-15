@@ -1,6 +1,17 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.4.2'
+    }
+}
+
 apply plugin: 'com.android.application'
 
 android {
+    namespace 'com.allhook'
     compileSdk 34
     buildToolsVersion "34.0.0"
 
@@ -10,6 +21,13 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs = ['src/main/java']
+            manifest.srcFile 'AndroidManifest.xml'
+        }
     }
 
     buildTypes {
@@ -22,9 +40,12 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
+    repositories {
+        maven { url 'https://api.xposed.info/' }
+    }
 }
 
 dependencies {
     compileOnly 'de.robv.android.xposed:api:82'
-    compileOnly 'de.robv.android.xposed:api-sdk:82'
 }
