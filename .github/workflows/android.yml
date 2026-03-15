@@ -31,11 +31,16 @@ jobs:
             keytool -genkey -v -keystore keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias keyalias -storepass android -keypass android -dname "CN=Android, OU=Android, O=Android, L=Android, ST=Android, C=US"
           fi
 
+      - name: 🔧 下载并安装 Gradle 9.4
+        run: |
+          wget https://services.gradle.org/distributions/gradle-9.4-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt/
+          ln -sf /opt/gradle-9.4/bin/gradle /usr/local/bin/gradle
+          gradle --version
+
       - name: 🛠️ 构建项目
-        uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: 9.4
-          arguments: assembleRelease
+        run: |
+          gradle assembleRelease --no-daemon
         env:
           KEYSTORE_FILE: keystore.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
