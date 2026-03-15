@@ -13,16 +13,19 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @SuppressWarnings({"deprecation", "unchecked"})
 public class MainHook implements IXposedHookLoadPackage {
     private static final String TAG = "AllHook";
+    private static final Set<String> hookedPackages = new HashSet<>();
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        log("模块已加载到应用：" + lpparam.packageName);
+        hookedPackages.add(lpparam.packageName);
         
         hookGetPackageInfo(lpparam);
         hookGetApplicationInfo(lpparam);
@@ -30,28 +33,22 @@ public class MainHook implements IXposedHookLoadPackage {
         hookResolveActivity(lpparam);
     }
 
-    // Hook getPackageInfo
     private void hookGetPackageInfo(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 String pkg = (String) param.args[0];
-                int flags = (int) param.args[1];
                 PackageInfo info = (PackageInfo) param.getResult();
                 
-                String requestApp = lpparam.packageName;
-                
                 if (info != null) {
-                    logFormatted(requestApp, pkg, "已安装", "真实信息", 
-                        "versionCode=" + info.versionCode + ", versionName=" + info.versionName);
+                    logSimple(lpparam.packageName, pkg, "已安装", null);
                     return;
                 }
                 
-                logFormatted(requestApp, pkg, "未安装", "开始伪装", null);
                 PackageInfo fakeInfo = createFakePackageInfo(pkg);
                 param.setResult(fakeInfo);
-                logFormatted(requestApp, pkg, "伪装成功", "返回伪造信息", 
-                    "versionCode=" + fakeInfo.versionCode + ", versionName=" + fakeInfo.versionName);
+                String details = "versionCode=" + fakeInfo.versionCode + ", versionName=" + fakeInfo.versionName;
+                logSimple(lpparam.packageName, pkg, "伪装成功", details);
             }
         };
 
@@ -79,31 +76,26 @@ public class MainHook implements IXposedHookLoadPackage {
         } catch (Throwable ignored) {}
     }
 
-    // Hook getApplicationInfo
     private void hookGetApplicationInfo(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 String pkg = (String) param.args[0];
-                int flags = (int) param.args[1];
                 ApplicationInfo info = (ApplicationInfo) param.getResult();
                 
-                String requestApp = lpparam.packageName;
-                
                 if (info != null) {
-                    logFormatted(requestApp, pkg, "已安装", "真实信息", null);
                     return;
                 }
                 
-                logFormatted(requestApp, pkg, "未安装", "开始伪装", null);
                 ApplicationInfo fakeInfo = new ApplicationInfo();
                 fakeInfo.packageName = pkg;
                 fakeInfo.enabled = true;
                 fakeInfo.sourceDir = "/data/app/" + pkg + "-1/base.apk";
                 fakeInfo.dataDir = "/data/data/" + pkg;
                 param.setResult(fakeInfo);
-                logFormatted(requestApp, pkg, "伪装成功", "返回伪造信息", 
-                    "sourceDir=" + fakeInfo.sourceDir);
+                
+                String details = "sourceDir=" + fakeInfo.sourceDir + ", dataDir=" + fakeInfo.dataDir;
+                logSimple(lpparam.packageName, pkg, "伪装成功 (AppInfo)", details);
             }
         };
 
@@ -119,22 +111,16 @@ public class MainHook implements IXposedHookLoadPackage {
         } catch (Throwable ignored) {}
     }
 
-    // Hook queryIntentActivities (通过 Intent 检测)
     private void hookQueryIntentActivities(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Intent intent = (Intent) param.args[0];
-                int flags = (int) param.args[1];
                 List<ResolveInfo> result = (List<ResolveInfo>) param.getResult();
                 
-                String requestApp = lpparam.packageName;
-                String intentAction = intent != null ? intent.getAction() : "null";
                 String intentPackage = intent != null ? intent.getPackage() : "null";
                 
                 if (result == null || result.isEmpty()) {
-                    logFormatted(requestApp, intentPackage, "无匹配", "开始伪装", "Action=" + intentAction);
-                    
                     List<ResolveInfo> fakeList = new ArrayList<>();
                     ResolveInfo resolveInfo = new ResolveInfo();
                     resolveInfo.activityInfo = new android.content.pm.ActivityInfo();
@@ -143,9 +129,7 @@ public class MainHook implements IXposedHookLoadPackage {
                     resolveInfo.activityInfo.enabled = true;
                     fakeList.add(resolveInfo);
                     param.setResult(fakeList);
-                    logFormatted(requestApp, intentPackage, "伪装成功", "返回伪造列表", "size=1");
-                } else {
-                    logFormatted(requestApp, intentPackage, "有匹配", "真实信息", "size=" + result.size());
+                    logSimple(lpparam.packageName, intentPackage, "伪装成功 (Intent)", "packageName=com.fake.package");
                 }
             }
         };
@@ -162,33 +146,23 @@ public class MainHook implements IXposedHookLoadPackage {
         } catch (Throwable ignored) {}
     }
 
-    // Hook resolveActivity
     private void hookResolveActivity(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Intent intent = (Intent) param.args[0];
-                int flags = (int) param.args[1];
                 ResolveInfo result = (ResolveInfo) param.getResult();
                 
-                String requestApp = lpparam.packageName;
-                String intentAction = intent != null ? intent.getAction() : "null";
                 String intentPackage = intent != null ? intent.getPackage() : "null";
                 
                 if (result == null) {
-                    logFormatted(requestApp, intentPackage, "未找到", "开始伪装", "Action=" + intentAction);
-                    
                     ResolveInfo fakeInfo = new ResolveInfo();
                     fakeInfo.activityInfo = new android.content.pm.ActivityInfo();
                     fakeInfo.activityInfo.packageName = "com.fake.package";
                     fakeInfo.activityInfo.name = "FakeActivity";
                     fakeInfo.activityInfo.enabled = true;
                     param.setResult(fakeInfo);
-                    logFormatted(requestApp, intentPackage, "伪装成功", "返回伪造信息", 
-                        "packageName=" + fakeInfo.activityInfo.packageName);
-                } else {
-                    logFormatted(requestApp, intentPackage, "已找到", "真实信息", 
-                        "packageName=" + result.activityInfo.packageName);
+                    logSimple(lpparam.packageName, intentPackage, "伪装成功 (Activity)", "packageName=com.fake.package");
                 }
             }
         };
@@ -223,25 +197,18 @@ public class MainHook implements IXposedHookLoadPackage {
         return info;
     }
     
-    private void log(String msg) {
-        Log.i(TAG, msg);
-    }
-    
-    private void logFormatted(String requestApp, String targetPkg, String status, String type, String details) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("【").append(getTimestamp()).append("】\n");
-        sb.append("  请求应用：").append(requestApp).append("\n");
-        sb.append("  检测目标：").append(targetPkg).append("\n");
-        sb.append("  安装状态：").append(status).append("\n");
-        sb.append("  返回类型：").append(type);
-        if (details != null) {
-            sb.append("\n  详细信息：").append(details);
+    private void logSimple(String requestApp, String targetPkg, String status, String details) {
+        if (!hookedPackages.contains(requestApp)) {
+            return;
         }
-        Log.i(TAG, sb.toString());
-    }
-    
-    private String getTimestamp() {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA);
-        return sdf.format(new Date());
+        
+        String timestamp = new SimpleDateFormat("MM-dd HH:mm:ss", Locale.CHINA).format(new Date());
+        String log = String.format("[%s] 检测目标：%s | 请求应用：%s | 状态：%s", 
+            timestamp, targetPkg, requestApp, status);
+        Log.i(TAG, log);
+        
+        if (details != null) {
+            Log.i(TAG, "         └─ " + details);
+        }
     }
 }
