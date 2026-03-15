@@ -13,13 +13,14 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import java.util.ArrayList;
 import java.util.List;
 
+@SuppressWarnings({"deprecation", "unchecked"})
 public class MainHook implements IXposedHookLoadPackage {
     private static final String TAG = "AllHook";
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         Log.i(TAG, "模块已加载到应用：" + lpparam.packageName);
-        
+
         hookGetPackageInfo(lpparam);
         hookGetApplicationInfo(lpparam);
         hookQueryIntentActivities(lpparam);
