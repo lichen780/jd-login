@@ -42,7 +42,6 @@ public class MainActivity extends Activity {
         textView = new TextView(this);
         textView.setTextSize(11);
         textView.setPadding(15, 15, 15, 15);
-        textView.setSingleLine(false);
         
         ScrollView scrollView = new ScrollView(this);
         scrollView.addView(textView);
@@ -78,17 +77,22 @@ public class MainActivity extends Activity {
     
     private void refreshLog() {
         String log = getHookLog();
-        textView.setText(log.isEmpty() ? "暂无日志\n\n请先在 Xposed 中勾选模块，然后使用目标 APP" : log);
+        textView.setText(log.isEmpty() ? "暂无日志\n\n请确保：\n1. Xposed 中已勾选本模块\n2. 勾选了目标应用\n3. 重启了目标应用" : log);
     }
     
     private String getHookLog() {
         StringBuilder log = new StringBuilder();
         try {
-            Process process = Runtime.getRuntime().exec("logcat -d -s AllHook");
+            Process process = Runtime.getRuntime().exec("logcat -d -s AllHook:*");
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
             String line;
             while ((line = reader.readLine()) != null) {
-                log.append(line).append("\n\n");
+                // 移除 logcat 前缀
+                int idx = line.indexOf("I AllHook :");
+                if (idx >= 0) {
+                    line = line.substring(idx + 11).trim();
+                }
+                log.append(line).append("\n");
             }
             reader.close();
         } catch (Exception e) {

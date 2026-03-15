@@ -21,11 +21,15 @@ import java.util.Set;
 @SuppressWarnings({"deprecation", "unchecked"})
 public class MainHook implements IXposedHookLoadPackage {
     private static final String TAG = "AllHook";
-    private static final Set<String> hookedPackages = new HashSet<>();
+    private static final Set<String> activePackages = new HashSet<>();
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        hookedPackages.add(lpparam.packageName);
+        // 只在 Xposed 中勾选的应用才激活 Hook
+        if (lpparam.isFirstApplication) {
+            activePackages.add(lpparam.packageName);
+            log("模块激活：" + lpparam.packageName);
+        }
         
         hookGetPackageInfo(lpparam);
         hookGetApplicationInfo(lpparam);
@@ -41,14 +45,12 @@ public class MainHook implements IXposedHookLoadPackage {
                 PackageInfo info = (PackageInfo) param.getResult();
                 
                 if (info != null) {
-                    logSimple(lpparam.packageName, pkg, "已安装", null);
                     return;
                 }
                 
                 PackageInfo fakeInfo = createFakePackageInfo(pkg);
                 param.setResult(fakeInfo);
-                String details = "versionCode=" + fakeInfo.versionCode + ", versionName=" + fakeInfo.versionName;
-                logSimple(lpparam.packageName, pkg, "伪装成功", details);
+                logSimple(lpparam.packageName, pkg, "伪装成功", "versionCode=" + fakeInfo.versionCode + ", versionName=" + fakeInfo.versionName);
             }
         };
 
@@ -93,9 +95,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 fakeInfo.sourceDir = "/data/app/" + pkg + "-1/base.apk";
                 fakeInfo.dataDir = "/data/data/" + pkg;
                 param.setResult(fakeInfo);
-                
-                String details = "sourceDir=" + fakeInfo.sourceDir + ", dataDir=" + fakeInfo.dataDir;
-                logSimple(lpparam.packageName, pkg, "伪装成功 (AppInfo)", details);
+                logSimple(lpparam.packageName, pkg, "伪装成功 (AppInfo)", "sourceDir=" + fakeInfo.sourceDir);
             }
         };
 
@@ -198,17 +198,19 @@ public class MainHook implements IXposedHookLoadPackage {
     }
     
     private void logSimple(String requestApp, String targetPkg, String status, String details) {
-        if (!hookedPackages.contains(requestApp)) {
+        // 只记录已激活（Xposed 勾选）的应用
+        if (!activePackages.contains(requestApp)) {
             return;
         }
         
-        String timestamp = new SimpleDateFormat("MM-dd HH:mm:ss", Locale.CHINA).format(new Date());
-        String log = String.format("[%s] 检测目标：%s | 请求应用：%s | 状态：%s", 
-            timestamp, targetPkg, requestApp, status);
-        Log.i(TAG, log);
-        
+        String timestamp = new SimpleDateFormat("HH:mm:ss", Locale.CHINA).format(new Date());
+        Log.i(TAG, timestamp + " | 检测目标：" + targetPkg + " | 请求应用：" + requestApp + " | " + status);
         if (details != null) {
             Log.i(TAG, "         └─ " + details);
         }
+    }
+    
+    private void log(String msg) {
+        Log.i(TAG, msg);
     }
 }
