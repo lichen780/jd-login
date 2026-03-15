@@ -35,13 +35,21 @@ public class MainHook implements IXposedHookLoadPackage {
     private void hookGetPackageInfo(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 String pkg = (String) param.args[0];
+                PackageInfo info = (PackageInfo) param.getResult();
                 
-                // 直接返回伪造的 PackageInfo，不调用原方法
-                PackageInfo fakeInfo = createFakePackageInfo(pkg);
-                param.setResult(fakeInfo);
-                log("[" + lpparam.packageName + "] getPackageInfo(" + pkg + ") → 返回伪造数据");
+                // 检测自身时，返回真实信息
+                if (lpparam.packageName.equals(pkg)) {
+                    return;
+                }
+                
+                // 检测其他应用时，如果原方法返回 null，则伪造
+                if (info == null) {
+                    PackageInfo fakeInfo = createFakePackageInfo(pkg);
+                    param.setResult(fakeInfo);
+                    log("[" + lpparam.packageName + "] getPackageInfo(" + pkg + ") → 伪装成功");
+                }
             }
         };
 
@@ -54,10 +62,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 int.class,
                 hook
             );
-            log("Hook 成功：getPackageInfo(String, int)");
-        } catch (Throwable e) {
-            log("Hook 失败：getPackageInfo(String, int) - " + e.getMessage());
-        }
+        } catch (Throwable ignored) {}
 
         try {
             XposedHelpers.findAndHookMethod(
@@ -69,22 +74,28 @@ public class MainHook implements IXposedHookLoadPackage {
                 long.class,
                 hook
             );
-            log("Hook 成功：getPackageInfo(String, int, long)");
-        } catch (Throwable e) {
-            log("Hook 失败：getPackageInfo(String, int, long) - " + e.getMessage());
-        }
+        } catch (Throwable ignored) {}
     }
 
     // ========== 核心 Hook：getApplicationInfo ==========
     private void hookGetApplicationInfo(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 String pkg = (String) param.args[0];
+                ApplicationInfo info = (ApplicationInfo) param.getResult();
                 
-                ApplicationInfo fakeInfo = createFakeAppInfo(pkg);
-                param.setResult(fakeInfo);
-                log("[" + lpparam.packageName + "] getApplicationInfo(" + pkg + ") → 返回伪造数据");
+                // 检测自身时，返回真实信息
+                if (lpparam.packageName.equals(pkg)) {
+                    return;
+                }
+                
+                // 检测其他应用时，如果原方法返回 null，则伪造
+                if (info == null) {
+                    ApplicationInfo fakeInfo = createFakeAppInfo(pkg);
+                    param.setResult(fakeInfo);
+                    log("[" + lpparam.packageName + "] getApplicationInfo(" + pkg + ") → 伪装成功");
+                }
             }
         };
 
@@ -97,25 +108,27 @@ public class MainHook implements IXposedHookLoadPackage {
                 int.class,
                 hook
             );
-            log("Hook 成功：getApplicationInfo(String, int)");
-        } catch (Throwable e) {
-            log("Hook 失败：getApplicationInfo(String, int) - " + e.getMessage());
-        }
+        } catch (Throwable ignored) {}
     }
 
     // ========== Hook：queryIntentActivities ==========
     private void hookQueryIntentActivities(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                List<ResolveInfo> fakeList = new ArrayList<>();
-                ResolveInfo resolveInfo = new ResolveInfo();
-                resolveInfo.activityInfo = new android.content.pm.ActivityInfo();
-                resolveInfo.activityInfo.packageName = "com.fake.package";
-                resolveInfo.activityInfo.name = "FakeActivity";
-                resolveInfo.activityInfo.enabled = true;
-                fakeList.add(resolveInfo);
-                param.setResult(fakeList);
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                @SuppressWarnings("unchecked")
+                List<ResolveInfo> result = (List<ResolveInfo>) param.getResult();
+                
+                if (result == null || result.isEmpty()) {
+                    List<ResolveInfo> fakeList = new ArrayList<>();
+                    ResolveInfo resolveInfo = new ResolveInfo();
+                    resolveInfo.activityInfo = new android.content.pm.ActivityInfo();
+                    resolveInfo.activityInfo.packageName = "com.fake.package";
+                    resolveInfo.activityInfo.name = "FakeActivity";
+                    resolveInfo.activityInfo.enabled = true;
+                    fakeList.add(resolveInfo);
+                    param.setResult(fakeList);
+                }
             }
         };
 
@@ -135,13 +148,17 @@ public class MainHook implements IXposedHookLoadPackage {
     private void hookResolveActivity(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                ResolveInfo fakeInfo = new ResolveInfo();
-                fakeInfo.activityInfo = new android.content.pm.ActivityInfo();
-                fakeInfo.activityInfo.packageName = "com.fake.package";
-                fakeInfo.activityInfo.name = "FakeActivity";
-                fakeInfo.activityInfo.enabled = true;
-                param.setResult(fakeInfo);
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                ResolveInfo result = (ResolveInfo) param.getResult();
+                
+                if (result == null) {
+                    ResolveInfo fakeInfo = new ResolveInfo();
+                    fakeInfo.activityInfo = new android.content.pm.ActivityInfo();
+                    fakeInfo.activityInfo.packageName = "com.fake.package";
+                    fakeInfo.activityInfo.name = "FakeActivity";
+                    fakeInfo.activityInfo.enabled = true;
+                    param.setResult(fakeInfo);
+                }
             }
         };
 
