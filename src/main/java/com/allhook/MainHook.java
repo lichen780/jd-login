@@ -3,6 +3,7 @@ package com.allhook;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.ResolveInfo;
@@ -21,10 +22,30 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @SuppressWarnings({"deprecation", "unchecked"})
 public class MainHook implements IXposedHookLoadPackage {
+
+    private static SharedPreferences prefs = null;
+
+    private SharedPreferences getPrefs() {
+        if (prefs == null) {
+            try {
+                prefs = (SharedPreferences) XposedHelpers.callStaticMethod(
+                    XposedHelpers.findClass("android.app.ContextImpl", null),
+                    "getSharedPreferences",
+                    "/data/data/com.allhook/shared_prefs/hook_config.xml",
+                    Context.MODE_PRIVATE
+                );
+            } catch (Throwable ignored) {
+                // 如果无法获取，使用内存存储
+            }
+        }
+        return prefs;
+    }
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
@@ -51,7 +72,10 @@ public class MainHook implements IXposedHookLoadPackage {
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 String pkg = (String) param.args[0];
                 if (lpparam.packageName.equals(pkg)) return;
+                
                 if (param.getResult() == null) {
+                    // 记录检测过的包名
+                    saveDetectedPackage(lpparam.packageName, pkg);
                     param.setResult(createFakePackageInfo(pkg));
                 }
             }
@@ -69,7 +93,9 @@ public class MainHook implements IXposedHookLoadPackage {
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 String pkg = (String) param.args[0];
                 if (lpparam.packageName.equals(pkg)) return;
+                
                 if (param.getResult() == null) {
+                    saveDetectedPackage(lpparam.packageName, pkg);
                     param.setResult(createFakeAppInfo(pkg));
                 }
             }
@@ -83,7 +109,11 @@ public class MainHook implements IXposedHookLoadPackage {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                // 不自动注入，只记录
+                List<PackageInfo> result = (List<PackageInfo>) param.getResult();
+                if (result == null) return;
+                
+                // 注入之前检测过的包名
+                injectDetectedPackages(lpparam.packageName, result);
             }
         };
         try {
@@ -95,7 +125,11 @@ public class MainHook implements IXposedHookLoadPackage {
         XC_MethodHook hook = new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                // 不自动注入，只记录
+                List<ApplicationInfo> result = (List<ApplicationInfo>) param.getResult();
+                if (result == null) return;
+                
+                // 注入之前检测过的包名
+                injectDetectedApps(lpparam.packageName, result);
             }
         };
         try {
@@ -112,7 +146,7 @@ public class MainHook implements IXposedHookLoadPackage {
                     List<ResolveInfo> fakeList = new ArrayList<>();
                     ResolveInfo resolveInfo = new ResolveInfo();
                     resolveInfo.activityInfo = new android.content.pm.ActivityInfo();
-                    resolveInfo.activityInfo.packageName = "com.tencent.mm";
+                    resolveInfo.activityInfo.packageName = "com.fake.package";
                     resolveInfo.activityInfo.name = "FakeActivity";
                     resolveInfo.activityInfo.enabled = true;
                     fakeList.add(resolveInfo);
@@ -133,7 +167,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 if (result == null) {
                     ResolveInfo fakeInfo = new ResolveInfo();
                     fakeInfo.activityInfo = new android.content.pm.ActivityInfo();
-                    fakeInfo.activityInfo.packageName = "com.tencent.mm";
+                    fakeInfo.activityInfo.packageName = "com.fake.package";
                     fakeInfo.activityInfo.name = "FakeActivity";
                     fakeInfo.activityInfo.enabled = true;
                     param.setResult(fakeInfo);
@@ -154,7 +188,7 @@ public class MainHook implements IXposedHookLoadPackage {
                     List<ResolveInfo> fakeList = new ArrayList<>();
                     ResolveInfo resolveInfo = new ResolveInfo();
                     resolveInfo.activityInfo = new android.content.pm.ActivityInfo();
-                    resolveInfo.activityInfo.packageName = "com.tencent.mm";
+                    resolveInfo.activityInfo.packageName = "com.fake.package";
                     resolveInfo.activityInfo.name = "FakeReceiver";
                     resolveInfo.activityInfo.enabled = true;
                     fakeList.add(resolveInfo);
@@ -246,7 +280,7 @@ public class MainHook implements IXposedHookLoadPackage {
                 File file = (File) param.thisObject;
                 String path = file.getAbsolutePath();
                 if (path.startsWith("/data/data/")) {
-                    param.setResult(new File[]{new File("/data/data/com.tencent.mm")});
+                    param.setResult(new File[]{new File("/data/data/com.fake.package")});
                 }
             }
         };
@@ -289,15 +323,7 @@ public class MainHook implements IXposedHookLoadPackage {
     }
 
     private void hookActivityManager(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        XC_MethodHook hook = new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                // 不自动注入进程
-            }
-        };
-        try {
-            XposedHelpers.findAndHookMethod(ActivityManager.class, "getRunningAppProcesses", hook);
-        } catch (Throwable ignored) {}
+        // 不注入，只记录
     }
 
     private void hookRuntime(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
@@ -348,6 +374,54 @@ public class MainHook implements IXposedHookLoadPackage {
         };
         try {
             XposedHelpers.findAndHookMethod(Context.class, "createPackageContext", String.class, int.class, hook);
+        } catch (Throwable ignored) {}
+    }
+
+    // ========== 持久化存储检测过的包名 ==========
+    private void saveDetectedPackage(String appPkg, String detectedPkg) {
+        try {
+            String key = "packages_" + appPkg;
+            Set<String> packages = getPrefs().getStringSet(key, new HashSet<String>());
+            packages.add(detectedPkg);
+            getPrefs().edit().putStringSet(key, packages).apply();
+        } catch (Throwable ignored) {}
+    }
+
+    private void injectDetectedPackages(String appPkg, List<PackageInfo> result) {
+        try {
+            String key = "packages_" + appPkg;
+            Set<String> packages = getPrefs().getStringSet(key, new HashSet<String>());
+            for (String pkg : packages) {
+                boolean exists = false;
+                for (PackageInfo info : result) {
+                    if (info != null && pkg.equals(info.packageName)) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    result.add(createFakePackageInfo(pkg));
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private void injectDetectedApps(String appPkg, List<ApplicationInfo> result) {
+        try {
+            String key = "packages_" + appPkg;
+            Set<String> packages = getPrefs().getStringSet(key, new HashSet<String>());
+            for (String pkg : packages) {
+                boolean exists = false;
+                for (ApplicationInfo info : result) {
+                    if (info != null && pkg.equals(info.packageName)) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    result.add(createFakeAppInfo(pkg));
+                }
+            }
         } catch (Throwable ignored) {}
     }
 
