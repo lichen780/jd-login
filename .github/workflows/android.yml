@@ -25,12 +25,16 @@ jobs:
           cache: 'gradle'
 
       - name: 🔑 使用固定签名密钥库
+        id: keystore
         run: |
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ] && [ "${{ secrets.KEYSTORE_BASE64 }}" != "" ]; then
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
-          fi
-          if [ ! -f keystore.jks ]; then
+            echo "使用 Secrets 中的固定密钥库"
+            echo "use_secret=true" >> $GITHUB_OUTPUT
+          else
             keytool -genkeypair -v -keystore keystore.jks -alias keyalias -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android, OU=Android, O=Android, L=Android, ST=Android, C=US"
+            echo "未设置 Secrets，生成临时密钥库（每次构建不同）"
+            echo "use_secret=false" >> $GITHUB_OUTPUT
           fi
 
       - name: 🔧 下载并安装 Gradle 9.4
@@ -40,14 +44,23 @@ jobs:
           ln -sf /opt/gradle-9.4/bin/gradle /usr/local/bin/gradle
           gradle --version
 
-      - name: 🛠️ 构建项目
+      - name: 🛠️ 构建项目（使用固定密钥）
+        if: steps.keystore.outputs.use_secret == 'true'
         run: |
-          gradle assembleRelease --no-daemon
-        env:
-          KEYSTORE_FILE: keystore.jks
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          gradle assembleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file=keystore.jks \
+            -Pandroid.injected.signing.store.password=android \
+            -Pandroid.injected.signing.key.alias=keyalias \
+            -Pandroid.injected.signing.key.password=android
+
+      - name: 🛠️ 构建项目（使用临时密钥）
+        if: steps.keystore.outputs.use_secret != 'true'
+        run: |
+          gradle assembleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file=keystore.jks \
+            -Pandroid.injected.signing.store.password=android \
+            -Pandroid.injected.signing.key.alias=keyalias \
+            -Pandroid.injected.signing.key.password=android
 
       - name: 📤 上传 APK
         uses: actions/upload-artifact@v4
