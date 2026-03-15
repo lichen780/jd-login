@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.allhook">
 
+    <uses-permission android:name="android.permission.READ_LOGS" />
+
     <application
         android:label="全局伪装安装状态"
         android:icon="@android:drawable/ic_menu_info_details"
