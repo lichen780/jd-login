@@ -4,18 +4,29 @@
 
     <application
         android:label="全局伪装安装状态"
+        android:icon="@android:drawable/ic_menu_info_details"
         android:allowBackup="true"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.Light">
 
         <meta-data
             android:name="xposedmodule"
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="通杀APP安装检测，伪装任意APP已安装" />
+            android:value="通杀 APP 安装检测，伪装任意 APP 已安装" />
         <meta-data
             android:name="xposedminversion"
             android:value="54" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
     </application>
 </manifest>
